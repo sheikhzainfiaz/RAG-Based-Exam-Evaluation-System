@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+model User {
+  id       String @id @default(cuid())
+  name     String
+  email    String @unique
+  password String 
+  role     Role
+
+  // Teacher relations
+  examsCreated Exam[]
+  assignments  TeacherSubject[]
+
+  // Student relations
+  studentSection   Section? @relation(fields: [studentSectionId], references: [id])
+  studentSectionId String?
+  results          Result[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Section {
+  id       String @id @default(cuid())
+  name     String // e.g. "Section A"
+  semester String // e.g. "5th Semester"
+
+  students User[]
+  subjects TeacherSubject[] 
+  exams    Exam[]
+}
+
+model Subject {
+  id   String @id @default(cuid())
+  name String @unique
+
+  teachers TeacherSubject[]
+  exams    Exam[]
+}
+
+// Joint table to link Teacher, Subject, and Section
+model TeacherSubject {
+  id        String   @id @default(cuid())
+  teacher   User     @relation(fields: [teacherId], references: [id])
+  teacherId String
+  subject   Subject  @relation(fields: [subjectId], references: [id])
+  subjectId String
+  section   Section  @relation(fields: [sectionId], references: [id])
+  sectionId String
+
+  @@unique([teacherId, subjectId, sectionId])
+}
+
+model Exam {
+  id        String   @id @default(cuid())
+  title     String
+  date      DateTime
+  duration  Int      // in minutes
+  
+  subject   Subject  @relation(fields: [subjectId], references: [id])
+  subjectId String
+  
+  section   Section  @relation(fields: [sectionId], references: [id])
+  sectionId String
+  
+  creator   User     @relation(fields: [creatorId], references: [id])
+  creatorId String
+
+  questions Question[]
+  results   Result[]
+  
+  createdAt DateTime @default(now())
+}
+
+model Question {
+  id            String @id @default(cuid())
+  exam          Exam   @relation(fields: [examId], references: [id])
+  examId        String
+  text          String
+  options       String? // JSON string, Optional for Subjective
+  correctAnswer String? // Optional for Subjective
+  type          String @default("MCQ") // SHORT, LONG, CONCEPTUAL
+  marks         Int    @default(5)
+}
+
+model Result {
+  id        String @id @default(cuid())
+  student   User   @relation(fields: [studentId], references: [id])
+  studentId String
+  exam      Exam   @relation(fields: [examId], references: [id])
+  examId    String
+  
+  score     Float
+  totalScore Float
+  status    String   @default("GRADED") // PENDING, GRADED
+  
+  answers   Answer[]
+  
+  submittedAt DateTime @default(now())
+}
+
+model Answer {
+  id        String   @id @default(cuid())
+  result    Result   @relation(fields: [resultId], references: [id])
+  resultId  String
+  
+  questionId String
+  // We can't easily relate to Question if we want to keep history if Questions are deleted, 
+  // but for now let's keep it simple or just store question text snapshot.
+  
+  answerText String
+  marksObtained Float? // Null if not yet graded
+}
